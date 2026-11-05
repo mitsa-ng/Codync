@@ -145,7 +145,16 @@ final class AppStore {
         Analytics.shared.foregroundState = {
             let allowed = await PushRegistrar.shared.isAllowed()
             // Unreadable (WidgetKit's error carries nothing to act on): `app_opened` leaves the count out.
-            let widgets = try? await WidgetCenter.shared.currentConfigurations().count
+            let widgets: Int?
+            if #available(iOS 18.0, *) {
+                widgets = try? await WidgetCenter.shared.currentConfigurations().count
+            } else {
+                widgets = await withCheckedContinuation { continuation in
+                    WidgetCenter.shared.getCurrentConfigurations { result in
+                        continuation.resume(returning: try? result.get().count)
+                    }
+                }
+            }
             return (allowed.map { $0 ? .allowed : .denied } ?? .notAsked, widgets)
         }
         CrashReports.shared.start()
