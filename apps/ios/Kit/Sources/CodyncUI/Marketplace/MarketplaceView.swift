@@ -23,6 +23,7 @@ public struct MarketplaceView: View {
     @State var section = ExtensionSection.agents
     @State var showInstalled = false
     @State var showCredentials = false
+    @State private var viewport = CGRect.zero
     @Environment(\.dismissModal) private var dismiss
     @Environment(\.horizontalSizeClass) var sizeClass
 
@@ -107,6 +108,8 @@ public struct MarketplaceView: View {
             .frame(maxWidth: 980)
             .frame(maxWidth: .infinity)
         }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { viewport = $0 }
+        .environment(\.marketplaceViewport, viewport)
         .background(Palette.background)
         .overlay(alignment: .topTrailing) {
             // dismissModal slides the sheet away; clearing the binding would cut it off.

@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "CodyncKit",
-    platforms: [.iOS("26.0")],
+    platforms: [.iOS("17.0")],
     products: [
         .library(name: "CodyncKit", targets: ["CodyncKit"]),
         .library(name: "CodyncUI", targets: ["CodyncUI"]),

@@ -133,6 +133,7 @@ private struct LoadMoreRow: View {
     let failed: Bool
     let load: () async -> Void
     @State private var inView = false
+    @Environment(\.marketplaceViewport) private var viewport
 
     var body: some View {
         Group {
@@ -143,9 +144,37 @@ private struct LoadMoreRow: View {
                 SkeletonGrid()
             }
         }
-        .onScrollVisibilityChange(threshold: 0.01) { inView = $0 }
+        .modifier(LoadMoreVisibility(inView: $inView, viewport: viewport))
         .task(id: inView ? cursor : nil) {
             if inView { await load() }
         }
+    }
+}
+
+private struct LoadMoreVisibility: ViewModifier {
+    @Binding var inView: Bool
+    let viewport: CGRect
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollVisibilityChange(threshold: 0.01) { inView = $0 }
+        } else {
+            content
+                .onGeometryChange(for: Bool.self) { proxy in
+                    !viewport.isEmpty && proxy.frame(in: .global).intersects(viewport)
+                } action: { inView = $0 }
+                .onDisappear { inView = false }
+        }
+    }
+}
+
+private struct MarketplaceViewportKey: EnvironmentKey {
+    static let defaultValue = CGRect.zero
+}
+
+extension EnvironmentValues {
+    var marketplaceViewport: CGRect {
+        get { self[MarketplaceViewportKey.self] }
+        set { self[MarketplaceViewportKey.self] = newValue }
     }
 }

@@ -97,23 +97,23 @@ struct RootView: View {
     /// thread is open.
     private var tabs: some View {
         TabView(selection: Bindable(app).tab) {
-            Tab(L10n.tr("Bots"), systemImage: "bubble.left.and.bubble.right.fill", value: AppTab.bots) {
-                NavigationStack(path: path) {
-                    BotListView()
-                        .safeAreaInset(edge: .bottom, spacing: 0) { AccessBanners() }
-                        .navigationDestination(for: BotReference.self) { ref in
-                            ChatScreen(ref: ref).toolbar(.hidden, for: .tabBar)
-                        }
-                }
-            }
-            Tab(L10n.tr("State"), systemImage: "rectangle.stack.fill", value: AppTab.state) {
-                StateTab()
+            NavigationStack(path: path) {
+                BotListView()
                     .safeAreaInset(edge: .bottom, spacing: 0) { AccessBanners() }
+                    .navigationDestination(for: BotReference.self) { ref in
+                        ChatScreen(ref: ref).toolbar(.hidden, for: .tabBar)
+                    }
             }
-            Tab(L10n.tr("Settings"), systemImage: "gearshape", value: AppTab.settings) {
-                SettingsView()
-                    .safeAreaInset(edge: .bottom, spacing: 0) { AccessBanners() }
-            }
+            .tabItem { Label(L10n.tr("Bots"), systemImage: "bubble.left.and.bubble.right.fill") }
+            .tag(AppTab.bots)
+            StateTab()
+                .safeAreaInset(edge: .bottom, spacing: 0) { AccessBanners() }
+                .tabItem { Label(L10n.tr("State"), systemImage: "rectangle.stack.fill") }
+                .tag(AppTab.state)
+            SettingsView()
+                .safeAreaInset(edge: .bottom, spacing: 0) { AccessBanners() }
+                .tabItem { Label(L10n.tr("Settings"), systemImage: "gearshape") }
+                .tag(AppTab.settings)
         }
         .tint(Palette.text)
         .tracked(.screenViewed(screen))

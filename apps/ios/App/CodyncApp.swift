@@ -439,6 +439,8 @@ enum BotsWidgetFeed {
         scope = currentScope
         WidgetCenter.shared.reloadTimelines(ofKind: "CodyncBots")
         WidgetCenter.shared.reloadTimelines(ofKind: "CodyncTeam")
-        ControlCenter.shared.reloadControls(ofKind: "CodyncLeadBot")
+        if #available(iOS 18.0, *) {
+            ControlCenter.shared.reloadControls(ofKind: "CodyncLeadBot")
+        }
     }
 }

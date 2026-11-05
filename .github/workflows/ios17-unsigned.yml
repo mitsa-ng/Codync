@@ -1,0 +1,118 @@
+name: Build iOS 17 unsigned IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios17-unsigned-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Prepare project
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/ios17-artifacts
+          xcodebuild -version | tee build/ios17-artifacts/xcode-version.txt
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$(xcode-select -p)/../Info.plist" | cut -d. -f1)" -ge 26
+          python3 - <<'PY'
+          from pathlib import Path
+          assert 'iOS: "17.0"' in Path('apps/project.yml').read_text(), 'Apply the iOS 17 compatibility patch first'
+          assert '.iOS("17.0")' in Path('apps/ios/Kit/Package.swift').read_text(), 'Apply the iOS 17 package platform patch first'
+          PY
+          brew install xcodegen
+          xcodegen generate --spec apps/project.yml
+      - name: Build Release for iOS devices
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project apps/Codync.xcodeproj \
+            -scheme iOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/dd \
+            IPHONEOS_DEPLOYMENT_TARGET=17.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY= \
+            DEVELOPMENT_TEAM= \
+            build 2>&1 | tee build/ios17-artifacts/build.log
+      - name: Verify and package IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=build/dd/Build/Products/Release-iphoneos/Codync.app
+          test -d "$APP"
+          mkdir -p build/ios17-package/Payload
+          ditto "$APP" build/ios17-package/Payload/Codync.app
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, plistlib, re, subprocess
+          app = Path('build/ios17-package/Payload/Codync.app')
+          plist = plistlib.loads((app / 'Info.plist').read_bytes())
+          assert plist['MinimumOSVersion'] == '17.0', plist['MinimumOSVersion']
+          binaries = []
+          for path in app.rglob('*'):
+              if not path.is_file():
+                  continue
+              kind = subprocess.check_output(['file', '-b', str(path)], text=True)
+              if 'Mach-O' not in kind:
+                  continue
+              archs = subprocess.check_output(['xcrun', 'lipo', '-archs', str(path)], text=True).strip().split()
+              assert archs == ['arm64'], (str(path), archs)
+              load = subprocess.check_output(['xcrun', 'otool', '-l', str(path)], text=True)
+              versions = re.findall(r'\bminos (\d+(?:\.\d+)*)', load)
+              versions += re.findall(r'cmd LC_VERSION_MIN_IPHONEOS\s+cmdsize \d+\s+version (\d+(?:\.\d+)*)', load)
+              assert versions, f'No iOS deployment version: {path}'
+              assert all(tuple(map(int, v.split('.'))) <= (17, 0, 0) for v in versions), (str(path), versions)
+              platforms = re.findall(r'\bplatform\s+(\S+)', load)
+              assert all(platform in {'2', 'IOS'} for platform in platforms), (str(path), platforms)
+              assert platforms or 'LC_VERSION_MIN_IPHONEOS' in load, str(path)
+              binaries.append({'path': str(path.relative_to(app)), 'architectures': archs, 'minimumOSVersions': versions})
+          assert binaries, 'No Mach-O binaries found'
+          result = {
+              'sourceCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+              'bundleID': plist['CFBundleIdentifier'],
+              'version': plist['CFBundleShortVersionString'],
+              'minimumOSVersion': plist['MinimumOSVersion'],
+              'signing': 'CODE_SIGNING_ALLOWED=NO; requires re-signing before installation',
+              'deviceTested': False,
+              'binaries': binaries,
+          }
+          Path('build/ios17-artifacts/manifest.json').write_text(json.dumps(result, indent=2) + '\n')
+          PY
+          (cd build/ios17-package && ditto -c -k --keepParent Payload ../ios17-artifacts/Codync-ios17-unsigned.ipa)
+          (cd build/ios17-artifacts && shasum -a 256 Codync-ios17-unsigned.ipa > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Codync-ios17-unsigned
+          path: |
+            build/ios17-artifacts/Codync-ios17-unsigned.ipa
+            build/ios17-artifacts/SHA256SUMS
+            build/ios17-artifacts/manifest.json
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Codync-ios17-build-logs
+          path: |
+            build/ios17-artifacts/build.log
+            build/ios17-artifacts/xcode-version.txt
+          retention-days: 7

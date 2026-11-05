@@ -1,5 +1,5 @@
 import Observation
-import Synchronization
+import os
 import Foundation
 import Testing
 @testable import CodyncKit
@@ -181,7 +181,7 @@ extension AppLanguageTests {
 
     @Test func changingLanguageInvalidatesObservedTranslationConsumers() {
         let store = UserDefaults(suiteName: "language-observation-\(UUID().uuidString)")!
-        let changed = Mutex(false)
+        let changed = OSAllocatedUnfairLock(initialState: false)
         withObservationTracking {
             _ = AppLanguage.preference(in: store)
         } onChange: {

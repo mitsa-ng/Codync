@@ -9,7 +9,9 @@ struct CodyncWidgets: WidgetBundle {
     var body: some Widget {
         BotsWidget()
         BotsTeamWidget()
-        UrgentBotControl()
+        if #available(iOS 18.0, *) {
+            UrgentBotControl()
+        }
         UsageWidget()
         ProviderUsageWidget()
         ClaudeUsageWidget()
@@ -242,6 +244,7 @@ extension BotsEntry {
 // MARK: - Control Center
 
 /// A Control Center button: the bot that needs you most and its state; a tap opens it.
+@available(iOS 18.0, *)
 struct UrgentBotControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         // The kind keeps its first name, so controls already placed stay.
@@ -275,6 +278,7 @@ struct UrgentBot: Sendable {
     }
 }
 
+@available(iOS 18.0, *)
 struct UrgentBotProvider: ControlValueProvider {
     var previewValue: UrgentBot { UrgentBot(text: "Reviewer: Needs you", symbol: "hand.raised.fill") }
 

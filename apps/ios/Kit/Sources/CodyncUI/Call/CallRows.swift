@@ -36,6 +36,8 @@ struct CallConversationView: View {
     /// The call's own messages, which the chat this device holds may not reach back to; nil while they load.
     @State private var fetched: [Entry]?
     @State private var error: String?
+    @State private var contentHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
 
     var body: some View {
         let entry = model.chat(line.botId).first { $0.id == line.id } ?? line
@@ -62,11 +64,11 @@ struct CallConversationView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
             // A short call reads from the top; a long one opens at its end.
-            .defaultScrollAnchor(.top, for: .alignment)
-            .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .defaultScrollAnchor(.bottom, for: .sizeChanges)
+            .modifier(CallConversationScrollAnchor(contentFits: contentHeight <= viewportHeight))
         }
         .background(Palette.background)
         .task(id: line.id) {
@@ -106,6 +108,21 @@ struct CallConversationView: View {
                 .background(Palette.bubbleAgent, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.trailing, 40)
+        }
+    }
+}
+
+private struct CallConversationScrollAnchor: ViewModifier {
+    let contentFits: Bool
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+                .defaultScrollAnchor(.top, for: .alignment)
+                .defaultScrollAnchor(.bottom, for: .initialOffset)
+                .defaultScrollAnchor(.bottom, for: .sizeChanges)
+        } else {
+            content.defaultScrollAnchor(contentFits ? .top : .bottom)
         }
     }
 }
