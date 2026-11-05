@@ -265,13 +265,7 @@ struct Composer: View {
 
     private var box: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            TextField(placeholder, text: $input.text, selection: $input.selection, axis: .vertical)
-                .lineLimit(1...8)
-                .font(.body)
-                .textFieldStyle(.plain)
-                .focused($focused)
-                // A hardware keyboard's Return (⌘↩ too) submits the field and ends editing.
-                .onSubmit(newline)
+            textInput
                 .padding(.vertical, fieldPadding)
             micButton
                 .padding(.bottom, max(0, (textLineHeight + 2 * fieldPadding - buttonSize) / 2))
@@ -294,6 +288,26 @@ struct Composer: View {
             model.setComposerDraft(value, for: draftKey)
             // Starting a command: list the computer's skills again.
             if value == "/" { Task { await model.refreshPlugins() } }
+        }
+    }
+
+    @ViewBuilder private var textInput: some View {
+        if #available(iOS 18.0, *) {
+            TextField(placeholder, text: $input.text, selection: $input.selection, axis: .vertical)
+                .lineLimit(1...8)
+                .font(.body)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                // A hardware keyboard's Return (⌘↩ too) submits the field and ends editing.
+                .onSubmit(newline)
+        } else {
+            LegacyComposerField(input: $input, isFocused: Binding(get: { focused }, set: { focused = $0 }),
+                                placeholder: placeholder, submit: submit)
+                .overlay(alignment: .topLeading) {
+                    if input.text.isEmpty {
+                        Text(placeholder).font(.body).foregroundStyle(.tertiary).allowsHitTesting(false)
+                    }
+                }
         }
     }
 

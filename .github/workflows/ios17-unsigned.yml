@@ -52,6 +52,33 @@ jobs:
             CODE_SIGN_IDENTITY= \
             DEVELOPMENT_TEAM= \
             build 2>&1 | tee build/ios17-artifacts/build.log
+      - name: Test composer text compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEVICE=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; print(next(d["udid"] for devices in json.load(sys.stdin)["devices"].values() for d in devices if d["name"].startswith("iPhone")))')
+          xcrun simctl bootstatus "$DEVICE" -b
+          cd apps/ios/Kit
+          xcodebuild test \
+            -scheme CodyncKit-Package \
+            -destination "platform=iOS Simulator,id=$DEVICE" \
+            -derivedDataPath "$GITHUB_WORKSPACE/build/dd" \
+            -resultBundlePath "$GITHUB_WORKSPACE/build/ios17-artifacts/ComposerTests.xcresult" \
+            -parallel-testing-enabled NO \
+            -only-testing:CodyncUITests/ComposerTextTests \
+            IPHONEOS_DEPLOYMENT_TARGET=17.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee "$GITHUB_WORKSPACE/build/ios17-artifacts/composer-tests.log"
+          cd "$GITHUB_WORKSPACE"
+          xcrun xcresulttool get test-results summary --path build/ios17-artifacts/ComposerTests.xcresult > build/ios17-artifacts/composer-test-summary.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          summary = json.loads(Path('build/ios17-artifacts/composer-test-summary.json').read_text())
+          assert summary.get('passedTests', 0) >= 6, summary
+          assert summary.get('failedTests', 0) == 0, summary
+          PY
       - name: Verify and package IPA
         shell: bash
         run: |
@@ -106,6 +133,7 @@ jobs:
             build/ios17-artifacts/Codync-ios17-unsigned.ipa
             build/ios17-artifacts/SHA256SUMS
             build/ios17-artifacts/manifest.json
+            build/ios17-artifacts/composer-test-summary.json
           if-no-files-found: error
           retention-days: 7
       - uses: actions/upload-artifact@v4
@@ -115,4 +143,7 @@ jobs:
           path: |
             build/ios17-artifacts/build.log
             build/ios17-artifacts/xcode-version.txt
+            build/ios17-artifacts/composer-tests.log
+            build/ios17-artifacts/composer-test-summary.json
+            build/ios17-artifacts/ComposerTests.xcresult
           retention-days: 7

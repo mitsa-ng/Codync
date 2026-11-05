@@ -202,7 +202,11 @@ private struct ConversationCollection: UIViewRepresentable {
 
         private func animate(_ animation: Animation?, _ changes: @escaping () -> Void) {
             if let animation, !reduceMotion {
-                UIView.animate(animation, changes: changes)
+                if #available(iOS 18.0, *) {
+                    UIView.animate(animation, changes: changes)
+                } else {
+                    UIViewPropertyAnimator(duration: 0.24, curve: .easeOut, animations: changes).startAnimation()
+                }
             } else {
                 changes()
             }
